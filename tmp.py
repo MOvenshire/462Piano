@@ -4,20 +4,14 @@ from time import sleep
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
-button = 4
-button2 = 22
-GPIO.setup(button, GPIO.IN, GPIO.PUD_UP)
-GPIO.setup(button2, GPIO.IN, GPIO.PUD_UP)
+buttonArr =[14, 15, 18, 23, 24, 25, 8, 7, 12, 16, 20, 21, 17, 27, 22, 5, 6, 13, 19]
+for b in buttonArr:
+  GPIO.setup(b, GPIO.IN, GPIO.PUD_UP)
 
 while True:
-  curr = GPIO.input(button)
-  curr2 = GPIO.input(button2)
-  if curr == GPIO.HIGH and curr2== GPIO.HIGH:
-    print ("HIGH")
-  elif (curr == GPIO.HIGH and curr2 == GPIO.LOW):
-    print ("RIGHT")
-  elif(curr == GPIO.LOW and curr2 == GPIO.HIGH):
-    print("LEFT")
-  else:
-    print("LOW")
+  for b in buttonArr:
+    
+    curr = GPIO.input(b)
+    if(curr == GPIO.HIGH):
+      print(b)
   sleep(0.5)
