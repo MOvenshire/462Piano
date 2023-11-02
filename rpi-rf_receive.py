@@ -27,7 +27,7 @@ def returnRxCode(gpio=27):
     rfdevice = RFDevice(gpio)
     rfdevice.enable_rx()
     timestamp = None
-    logging.info("Listening for codes on GPIO " + str(args.gpio))
+    logging.info("Listening for codes on GPIO " + str(gpio))
     while True:
         if rfdevice.rx_code_timestamp != timestamp:
             timestamp = rfdevice.rx_code_timestamp
@@ -37,3 +37,7 @@ def returnRxCode(gpio=27):
             rfdevice.cleanup()
             return rfdevice.rx_code
         time.sleep(0.01)
+        
+        
+while True:
+  print(returnRxCode())

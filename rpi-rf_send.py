@@ -2,30 +2,18 @@
 
 import argparse
 import logging
-
+import sys
+import time
+import RPi.GPIO as GPIO
+from time import sleep
 from rpi_rf import RFDevice
+GPIO.setmode(GPIO.BCM)
 
 logging.basicConfig(level=logging.INFO, datefmt='%Y-%m-%d %H:%M:%S',
                     format='%(asctime)-15s - [%(levelname)s] %(module)s: %(message)s',)
 
-""" 
-parser = argparse.ArgumentParser(description='Sends a decimal code via a 433/315MHz GPIO device')
-parser.add_argument('code', metavar='CODE', type=int,
-                    help="Decimal code to send")
-parser.add_argument('-g', dest='gpio', type=int, default=17,
-                    help="GPIO pin (Default: 17)")
-parser.add_argument('-p', dest='pulselength', type=int, default=None,
-                    help="Pulselength (Default: 350)")
-parser.add_argument('-t', dest='protocol', type=int, default=None,
-                    help="Protocol (Default: 1)")
-parser.add_argument('-l', dest='length', type=int, default=None,
-                    help="Codelength (Default: 24)")
-parser.add_argument('-r', dest='repeat', type=int, default=10,
-                    help="Repeat cycles (Default: 10)")
-args = parser.parse_args() 
-"""
 
-def send(code, gpio=17, pulselength=350, protocol=1, length=24, repeat=10):
+def send(code, gpio=26, pulselength=350, protocol=1, length=24, repeat=5):
     rfdevice = RFDevice(gpio)
     rfdevice.enable_tx()
     rfdevice.tx_repeat = repeat
@@ -37,4 +25,20 @@ def send(code, gpio=17, pulselength=350, protocol=1, length=24, repeat=10):
                 ", repeat: " + str(rfdevice.tx_repeat) + "]")
 
     rfdevice.tx_code(code, protocol, pulselength, length)
-    rfdevice.cleanup()
+    GPIO.setmode(GPIO.BCM)
+    
+def button_callback(channel):
+    key_index = remoteButtonArr.index(channel)
+    print("Button {} Pressed".format(key_index))
+    send(key_index)
+    
+
+remoteButtonArr =[21, 20, 16, 12, 25, 24]
+for b in remoteButtonArr:
+  GPIO.setup(b, GPIO.IN, GPIO.PUD_UP)
+
+# Setup event detection for buttons
+for pin in remoteButtonArr:
+    GPIO.add_event_detect(pin, GPIO.RISING, callback=button_callback, bouncetime=3000)
+while True:
+  sleep(0.000001)
