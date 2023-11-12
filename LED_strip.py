@@ -24,9 +24,23 @@ GPIO.setmode(GPIO.BCM)
 for pin in Key_PINS:
     GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
 
+
+#file setup for sound
+path = "/home/pi/Documents/462Piano/piano/"
+sound_files = ["1.ogg", "2.ogg", "3.ogg", "4.ogg", "5.ogg", "6.ogg", "7.ogg", "8.ogg", "9.ogg", "10.ogg", 
+"11.ogg", "12.ogg", "13.ogg", "14.ogg", "15.ogg", "16.ogg", "17.ogg", "18.ogg"]
+
+
+#pygame setup for sound
+pygame.mixer.init()
+speaker_volume = 0.5 #50% vol
+pygame.mixer.music.set_volume(speaker_volume)
+
+#Store recorded sounds
+recorded_sounds = []
+
 # Timer for turning off LEDs
 timer = None
-
 
 
 # Clear all LEDs
@@ -53,6 +67,10 @@ def play_mode(key_index):
     timer = threading.Timer(3.0, clear)  # Turn off LEDs after 3 seconds
     timer.start()
 
+# Play sound associated with key pressed
+def play_sound(sound_file):
+    pygame.mixer.music.load(path+sound_file)
+    pygame.mixer.music.play()
 
 ###########################################
 # light up from button to top
@@ -73,14 +91,22 @@ def song_mode(key_index):
     timer = threading.Timer(3.0, clear)  # Turn off LEDs after 3 seconds
     timer.start()
 
+# Record index of played notes
+def record_mode(key_index):
+    recorded_sounds.append(key_index)
 
-
+# Note: May need to use a separate thread for Pygame sound because it may interfere with the GPIO event detection
 
 # Button callback function
 def button_callback(channel):
     key_index = Key_PINS.index(channel)
     print("Button {} Pressed".format(key_index))
+    play_sound(sound_files[key_index])
     play_mode(key_index)
+    # When in record mode
+    # if len(recorded_sounds) < 20:
+    #   record_mode(key_index)
+    
     # when in song mode things change
     #song_mode(key_index)
 
