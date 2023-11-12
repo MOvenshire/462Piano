@@ -36,9 +36,11 @@ pygame.mixer.init()
 speaker_volume = 0.5 #50% vol
 pygame.mixer.music.set_volume(speaker_volume)
 
+#Store recorded sounds
+recorded_sounds = []
+
 # Timer for turning off LEDs
 timer = None
-
 
 
 # Clear all LEDs
@@ -65,10 +67,10 @@ def play_mode(key_index):
     timer = threading.Timer(3.0, clear)  # Turn off LEDs after 3 seconds
     timer.start()
 
+# Play sound associated with key pressed
 def play_sound(sound_file):
     pygame.mixer.music.load(path+sound_file)
     pygame.mixer.music.play()
-
 
 ###########################################
 # light up from button to top
@@ -89,6 +91,9 @@ def song_mode(key_index):
     timer = threading.Timer(3.0, clear)  # Turn off LEDs after 3 seconds
     timer.start()
 
+# Record index of played notes
+def record_mode(key_index):
+    recorded_sounds.append(key_index)
 
 # Note: May need to use a separate thread for Pygame sound because it may interfere with the GPIO event detection
 
@@ -98,6 +103,10 @@ def button_callback(channel):
     print("Button {} Pressed".format(key_index))
     play_sound(sound_files[key_index])
     play_mode(key_index)
+    # When in record mode
+    # if len(recorded_sounds) < 20:
+    #   record_mode(key_index)
+    
     # when in song mode things change
     #song_mode(key_index)
 
