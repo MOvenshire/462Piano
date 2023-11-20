@@ -52,8 +52,8 @@ for pin in Key_PINS:
 
 #file setup for sound
 path = "/home/pi/Documents/462Piano/piano/"
-sound_files = ["1.ogg", "2.ogg", "3.ogg", "4.ogg", "5.ogg", "6.ogg", "7.ogg", "8.ogg", "9.ogg", "10.ogg", 
-"11.ogg", "12.ogg", "13.ogg", "14.ogg", "15.ogg", "16.ogg", "17.ogg", "18.ogg"]
+sound_files = ["1.wav", "2.wav", "3.wav", "4.wav", "5.wav", "6.wav", "7.wav", "8.wav", "9.wav", "10.wav", 
+"11.wav", "12.wav", "13.wav", "14.wav", "15.wav", "16.wav", "17.wav", "18.wav"]
 
 #pygame setup for sound
 pygame.mixer.init()
@@ -94,11 +94,7 @@ def play_mode(key_index):
 
 # Play sound associated with key pressed
 def play_sound(sound_file):
-
-    # Play first 3 seconds of sound
-    full_audio = AudioSegment.from_file(path + sound_file)
-    first_3_secs = full_audio[:3000]
-    pygame.mixer.music.load(first_3_secs.export(format="ogg"))
+    pygame.mixer.music.load(path + sound_file)
     pygame.mixer.music.play()
 
 
