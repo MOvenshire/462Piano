@@ -8,6 +8,7 @@ import board
 import neopixel
 import time
 import threading
+from pydub import AudioSegment
 
 ### For Free Mode ####
 from adafruit_led_animation.color import AMBER
@@ -93,7 +94,11 @@ def play_mode(key_index):
 
 # Play sound associated with key pressed
 def play_sound(sound_file):
-    pygame.mixer.music.load(path+sound_file)
+
+    # Play first 3 seconds of sound
+    full_audio = AudioSegment.from_file(path + sound_file)
+    first_3_secs = full_audio[:3000]
+    pygame.mixer.music.load(first_3_secs.export(format="ogg"))
     pygame.mixer.music.play()
 
 
