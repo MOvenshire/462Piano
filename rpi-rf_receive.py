@@ -22,7 +22,7 @@ parser.add_argument('-g', dest='gpio', type=int, default=27,
                     help="GPIO pin (Default: 27)")
 args = parser.parse_args()
 """
-def returnRxCode(gpio=27):
+def returnRxCode(gpio=26):
     signal.signal(signal.SIGINT, exithandler)
     rfdevice = RFDevice(gpio)
     rfdevice.enable_rx()

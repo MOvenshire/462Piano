@@ -29,8 +29,9 @@ def send(code, gpio=26, pulselength=350, protocol=1, length=24, repeat=5):
     
 def button_callback(channel):
     key_index = remoteButtonArr.index(channel)
-    print("Button {} Pressed".format(key_index))
-    send(key_index)
+    numToSend = key_index + 1000
+    print("Button {} Pressed".format(numToSend))
+    send(numToSend)
     
 
 remoteButtonArr =[21, 20, 16, 12, 25, 24]

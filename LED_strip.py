@@ -1,14 +1,18 @@
 # to run the code
-# sudo pip3 install RPi.GPIO
-# sudo pip3 install adafruit-circuitpython-neopixel
-# sudo python3 LED_Strip.py
+#libraries to install RPi.GPIO, pygame, adafruit-circuitpython-neopixel, rpi-rf all can be installed with sudo pip3 install
+#python3 LED_Strip.py
 
 import RPi.GPIO as GPIO
 import board
 import neopixel
 import time
 import threading
-from pydub import AudioSegment
+import pygame
+import threading
+import signal
+import sys
+import logging
+from rpi_rf import RFDevice
 
 ### For Free Mode ####
 from adafruit_led_animation.color import AMBER
@@ -51,29 +55,107 @@ for pin in Key_PINS:
     GPIO.output(pin, GPIO.LOW)
 
 #file setup for sound
-path = "/home/pi/Documents/462Piano/piano/"
+basepath ="/home/pi/Documents/462Piano/"
+instrument = "piano"
+path = basepath +instrument
 sound_files = ["1.wav", "2.wav", "3.wav", "4.wav", "5.wav", "6.wav", "7.wav", "8.wav", "9.wav", "10.wav", 
 "11.wav", "12.wav", "13.wav", "14.wav", "15.wav", "16.wav", "17.wav", "18.wav"]
 
 #pygame setup for sound
 pygame.mixer.init()
 speaker_volume = 0.5 #50% vol
-pygame.mixer.music.set_volume(speaker_volume)
 
 #Store recorded sounds
 recorded_sequence = []
+recording = False
 
 # Timer for turning off LEDs
 timer = None
 
+#setup RF 
+rfdevice = None
 
+#setup learn modes 
+ledModeArr = ['play', 'learn Mary', 'learn ABC', 'learn Jingle Bells', 'free']
+currModeIndex = 0
+ABC_sequence=[14, 14, 24, 24, 25, 25, 24, 23, 23, 18, 18, 15, 15, 14, 24, 24, 23, 23, 18, 18, 15, 14, 14, 24, 24, 25, 25, 24, 23, 23, 18, 18, 15, 15, 14]
+MaryNLamb_sequence = [ 18, 15, 14, 15, 18, 18, 18, 15, 15, 15, 18, 24, 24, 18, 15, 14, 15, 18, 18, 18, 15, 15, 18, 15, 14]
+JingleBells_sequence = [18, 18, 18, 18, 18, 18, 18, 24, 14, 15, 18, 24, 24, 24, 24, 24, 18, 18, 18, 18, 15, 15, 18, 15, 24, 18, 18, 18, 18, 18, 18, 18, 24, 14, 15, 18, 24, 24, 24, 24, 24, 18, 18, 18, 18, 15, 15, 18, 15, 24]
+
+#Initialize each of the instruments
+instruments = ['piano','guitar', 'violin']
+
+##### HELPER FUNCTIONS 
+#rx rf
+def rfRXCode(gpio = 26):
+    rfdevice = RFDevice(gpio)
+    rfdevice.enable_rx()
+    timestamp = None
+    logging.info("Listening for codes on GPIO " + str(gpio))
+    while True:
+        if rfdevice.rx_code_timestamp != timestamp:
+            timestamp = rfdevice.rx_code_timestamp
+            logging.info(str(rfdevice.rx_code) +
+                        " [pulselength " + str(rfdevice.rx_pulselength) +
+                        ", protocol " + str(rfdevice.rx_proto) + "]")
+            rfdevice.cleanup()
+            return rfdevice.rx_code
+        time.sleep(0.01)
+
+#this function emulates a switch statement 
+def handleRfRx(rxRFReturnVal):
+    while True:
+        match rxRFReturnVal:
+            case 1000: #1000 (change LED mode)
+                currModeIndex = (currModeIndex + 1)%len(ledModeArr)
+                match currModeIndex:
+                    #Note: case 0 handled in button detect bc it is relevant to button, these all operate individually while the mat does its own thing
+                    case 1: #learn Mary had a little lamb
+                        t1.start()
+                    case 2: #learn ABC
+                        t2.start()
+                    case 3: #learn Jingle Bells
+                        t3.start()
+                    case 4: #free design
+                        count = 0
+                        t4.start()
+            case 1001: #1001 (change instrument) 
+                i = instruments.index(instrument)
+                instrument = instruments[(i+1)%3]
+                path = basepath + instrument
+
+            case 1002: #1002 (start record)
+                recorded_sequence = []
+                recording = True
+            case 1003: #1003 (play most recent record)
+                for i in recorded_sequence:
+                    play_sound(sound_files[i])
+            case 1004: #1004 (volume up)
+                speaker_volume += 0.2
+            case 1005: #1005 (volume down)
+                speaker_volume -= 0.2
+
+def pollRfRx():
+        while True:
+        #poll RX
+            retRX = rfRXCode()
+            handleRfRx(retRX)
+            time.sleep(0.5)
+
+# Play sound associated with key pressed
+def play_sound(sound_file):
+    pygame.mixer.music.set_volume(speaker_volume)
+    pygame.mixer.music.load(path + sound_file)
+    pygame.mixer.music.play()
+    while pygame.mixer.music.get_busy() == True:
+        continue
+
+### LED FUNCTIONS ###
 # Clear all LEDs
 def clear():
     for i in range(LED_COUNT):
         strip[i] = (0, 0, 0)
     strip.show()
-
-
 
 # Light up from top to button
 def play_mode(key_index):
@@ -90,12 +172,6 @@ def play_mode(key_index):
         timer.cancel()
     timer = threading.Timer(3.0, clear)  # Turn off LEDs after 3 seconds
     timer.start()
-
-
-# Play sound associated with key pressed
-def play_sound(sound_file):
-    pygame.mixer.music.load(path + sound_file)
-    pygame.mixer.music.play()
 
 
 ## Learn Mode ###
@@ -119,39 +195,23 @@ def play_key(strip, key_index, ROWS, COLS):
     strip.show()
 
 
-def learn_ABC_mode(strip, ABC_sequence, ROWS, COLS):
-    ABC_sequence=[14, 14, 24, 24, 25, 25, 24, 23, 23, 18, 18, 15, 15, 14, 24, 24, 23, 23, 18, 18, 15, 14, 14, 24, 24, 25, 25, 24, 23, 23, 18, 18, 15, 15, 14]
-    for key_index in ABC_sequence:
+def learn_mode(strip, song_sequence, ROWS, COLS):
+    for key_index in song_sequence:
         play_key(strip, key_index, ROWS, COLS)
         time.sleep(0.5)  # Delay between notes
-
-def learn_MaryNLamb_mode(strip, MaryNLamb_sequence, ROWS, COLS):
-    MaryNLamb_sequence = [ 18, 15, 14, 15, 18, 18, 18, 15, 15, 15, 18, 24, 24, 18, 15, 14, 15, 18, 18, 18, 15, 15, 18, 15, 14]
-    for key_index in MaryNLamb_sequence:
-        play_key(strip, key_index, ROWS, COLS)
-        time.sleep(0.5)  # Delay between notes
-
-def learn_ABC_mode(strip, JingleBells_sequence, ROWS, COLS):
-    JingleBells_sequence = [18, 18, 18, 18, 18, 18, 18, 24, 14, 15, 18, 24, 24, 24, 24, 24, 18, 18, 18, 18, 15, 15, 18, 15, 24, 18, 18, 18, 18, 18, 18, 18, 24, 14, 15, 18, 24, 24, 24, 24, 24, 18, 18, 18, 18, 15, 15, 18, 15, 24]
-    for key_index in JingleBells_sequence:
-        play_key(strip, key_index, ROWS, COLS)
-        time.sleep(0.5)  # Delay between notes
-
 
 ### Free Mode ###
-# update  the pin depending where the LED is connected
-pixels = neopixel.NeoPixel(board.D6, LED_COUNT, 1, False)
-
-def free_mode(speed=0.1, animation_duration=5, exit_condition=None):
-
+count = 0
+def free_mode(speed=0.1, animation_duration=5, exit_condition= (count>40)):
     try:
+        count+=1
         # Define animations with customizable parameters
-        solid = Solid(pixels, color=PINK)
-        blink = Blink(pixels, speed=speed, color=JADE)
-        colorcycle = ColorCycle(pixels, speed=speed, colors=[MAGENTA, ORANGE, TEAL])
-        chase = Chase(pixels, speed=speed, color=WHITE, size=3, spacing=6)
-        comet = Comet(pixels, speed=speed, color=PURPLE, tail_length=10, bounce=True)
-        pulse = Pulse(pixels, speed=speed, color=AMBER, period=3)
+        solid = Solid(strip, color=PINK)
+        blink = Blink(strip, speed=speed, color=JADE)
+        colorcycle = ColorCycle(strip, speed=speed, colors=[MAGENTA, ORANGE, TEAL])
+        chase = Chase(strip, speed=speed, color=WHITE, size=3, spacing=6)
+        comet = Comet(strip, speed=speed, color=PURPLE, tail_length=10, bounce=True)
+        pulse = Pulse(strip, speed=speed, color=AMBER, period=3)
 
         animations = AnimationSequence(
             solid, blink, colorcycle, chase, comet, pulse,
@@ -174,29 +234,44 @@ def record_mode(key_index):
 # Button callback function
 def button_callback(channel):
     key_index = Key_PINS.index(channel)
-    print("Button {} Pressed".format(key_index))
+    print("Button {} Pressed".format(key_index+1))
     play_sound(sound_files[key_index])
-    play_mode(key_index)
-    # When in record mode
-    # if len(recorded_sequence) < 20:
-    #   record_mode(key_index)
+    
+    if(recording == True and len(recorded_sequence)<20):
+        record_mode(key_index)   
+    if(len(recorded_sequence) == 19):
+        recording == False
 
-    # when in song mode things change
-    #song_mode(key_index)
+    #handle lights 
+    match currModeIndex:
+        case 0: #play
+            play_mode(key_index)
+
+#create threads
+t1 = threading.Thread(target = learn_mode(strip, MaryNLamb_sequence, ROWS, COLS), daemon = True)
+t2 = threading.Thread(target = learn_mode(strip, ABC_sequence, ROWS, COLS), daemon = True)
+t3 = threading.Thread(target = learn_mode(strip, JingleBells_sequence, ROWS, COLS), daemon = True)
+t4 = threading.Thread(target = free_mode(), daemon = True)
+threadRfRx = threading.Thread(target = pollRfRx(), daemon = True)
+
 
 # Setup event detection for buttons
 for pin in Key_PINS:
-    GPIO.add_event_detect(pin, GPIO.RISING, callback=button_callback, bouncetime=300)
+    GPIO.add_event_detect(pin, GPIO.RISING, callback=button_callback, bouncetime=1000)
+
 
 # Main program loop
 try:
     clear()
     print("Press a button to display a vertical line. Press CTRL+C to exit.")
     while True:
-        time.sleep(0.1)  # Small delay to reduce CPU usage
+        threadRfRx.start()
+        time.sleep(0.5)  # Small delay to reduce CPU usage
 
-finally:
+except KeyboardInterrupt:
     if timer is not None:
         timer.cancel()  # Cancel the timer if it's running
     clear()
     GPIO.cleanup()
+    rfdevice.cleanup()
+    sys.exit(0)
