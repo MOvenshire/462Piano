@@ -38,7 +38,7 @@ from adafruit_led_animation.color import (
 # GPIO pins for the 18 Keys
 # Buttons C[middle], D, E, F, G, A, B, C, D, E, F, C#, D#, F#, G#, A#, C#, D#
 # Buttons   1   2   3   4   5   6   7  8  9   10  11  12  13  14  15  16 17 18
-Key_PINS =[14, 15, 18, 23, 24, 25, 8, 7, 12, 16, 20, 21, 17, 27, 22, 5, 6, 13]
+Key_PINS =[14, 15, 18, 23, 24, 25, 8, 7, 12, 16, 20, 2, 17, 27, 22, 5, 6, 13]
 
 LED_COUNT = 90
 # The number of rows and columns in the LED matrix
@@ -51,8 +51,7 @@ strip = neopixel.NeoPixel(board.D2 , LED_COUNT, 1, False)
 # Setup GPIO
 GPIO.setmode(GPIO.BCM)
 for pin in Key_PINS:
-    GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.output(pin, GPIO.LOW)
+    GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 
 #file setup for sound
 basepath ="/home/pi/Documents/462Piano/"
@@ -105,34 +104,37 @@ def rfRXCode(gpio = 26):
 #this function emulates a switch statement 
 def handleRfRx(rxRFReturnVal):
     while True:
-        match rxRFReturnVal:
-            case 1000: #1000 (change LED mode)
-                currModeIndex = (currModeIndex + 1)%len(ledModeArr)
-                match currModeIndex:
-                    #Note: case 0 handled in button detect bc it is relevant to button, these all operate individually while the mat does its own thing
-                    case 1: #learn Mary had a little lamb
-                        t1.start()
-                    case 2: #learn ABC
-                        t2.start()
-                    case 3: #learn Jingle Bells
-                        t3.start()
-                    case 4: #free design
-                        count = 0
-                        t4.start()
-            case 1001: #1001 (change instrument) 
+        if(rxRFReturnVal == 1000):
+            currModeIndex = (currModeIndex + 1)%len(ledModeArr)
+            #Note: case 0 handled in button detect bc it is relevant to button, these all operate individually while the mat does its own thing
+            if(currModeIndex == 1):#learn Mary had a little lamb
+                t1.start()
+                t1.join()
+            elif(currModeIndex == 2):#learn ABC
+                t2.start()
+                t2.join()
+            elif(currModeIndex == 3):#learn Jingle Bells
+                t3.start()
+                t3.join()
+            elif(currModeIndex == 4):#free design
+                count = 0
+                t4.start()
+                t4.join()
+        elif(rxRFReturnVal == 1001):#1001 (change instrument) 
                 i = instruments.index(instrument)
                 instrument = instruments[(i+1)%3]
                 path = basepath + instrument
 
-            case 1002: #1002 (start record)
+        elif(rxRFReturnVal == 1002): #1002 (start record)
                 recorded_sequence = []
                 recording = True
-            case 1003: #1003 (play most recent record)
+
+        elif(rxRFReturnVal == 1003): #1003 (play most recent record)
                 for i in recorded_sequence:
                     play_sound(sound_files[i])
-            case 1004: #1004 (volume up)
+        elif(rxRFReturnVal == 1004): #1004 (volume up)
                 speaker_volume += 0.2
-            case 1005: #1005 (volume down)
+        elif(rxRFReturnVal == 1005): #1005 (volume down)
                 speaker_volume -= 0.2
 
 def pollRfRx():
@@ -247,25 +249,38 @@ def button_callback(channel):
         case 0: #play
             play_mode(key_index)
 
+def buttonLoop():
+    while True:
+        for b in Key_PINS:
+            if(b == GPIO.LOW):
+                key_index = Key_PINS.index(b)
+                print("Button {} Pressed".format(key_index+1))
+                play_sound(sound_files[key_index])
+                if(recording == True and len(recorded_sequence)<20):
+                    record_mode(key_index)   
+                if(len(recorded_sequence) == 19):
+                    recording == False
+                #handle lights 
+                if(currModeIndex == 0):#play
+                        play_mode(key_index)
+                time.sleep(1500) #most sound files are over 1 second 
+
 #create threads
 t1 = threading.Thread(target = learn_mode(strip, MaryNLamb_sequence, ROWS, COLS), daemon = True)
 t2 = threading.Thread(target = learn_mode(strip, ABC_sequence, ROWS, COLS), daemon = True)
 t3 = threading.Thread(target = learn_mode(strip, JingleBells_sequence, ROWS, COLS), daemon = True)
 t4 = threading.Thread(target = free_mode(), daemon = True)
 threadRfRx = threading.Thread(target = pollRfRx(), daemon = True)
-
-
-# Setup event detection for buttons
-for pin in Key_PINS:
-    GPIO.add_event_detect(pin, GPIO.RISING, callback=button_callback, bouncetime=1000)
-
+buttonThread = threading.Thread(target = buttonLoop(), daemon = True)
 
 # Main program loop
 try:
     clear()
     print("Press a button to display a vertical line. Press CTRL+C to exit.")
+    #both of these are infinite loops so no need to join threads. 
+    buttonThread.start()
+    threadRfRx.start()
     while True:
-        threadRfRx.start()
         time.sleep(0.5)  # Small delay to reduce CPU usage
 
 except KeyboardInterrupt:
